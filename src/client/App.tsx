@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   approveUser,
   createSession,
+  deleteMe,
   deleteSession,
   getMe,
   listAdminUsers,
@@ -10,6 +11,7 @@ import {
   type AdminList,
   type Failure,
   type Me,
+  type PublicUser,
 } from "./api";
 import { AccountMenu } from "./components/AccountMenu";
 import { FriendBanner } from "./components/FriendBanner";
@@ -132,7 +134,12 @@ type Screen =
   | { kind: "redirect" }
   | { kind: "error"; message: string }
   | { kind: "loggedOut" }
+  | { kind: "withdrawn" }
   | { kind: "ready"; me: Me; friendFlag: boolean | null };
+
+function canWithdraw(user: PublicUser): boolean {
+  return !user.isAdmin && (user.status === "pending" || user.status === "active");
+}
 
 function readyBody(me: Me, onMe: (next: Me) => void) {
   switch (me.user.status) {
@@ -152,6 +159,7 @@ function readyBody(me: Me, onMe: (next: Me) => void) {
 export function App({ liffId }: { liffId: string }) {
   const [screen, setScreen] = useState<Screen>({ kind: "loading" });
   const [logoutError, setLogoutError] = useState<string | null>(null);
+  const [withdrawError, setWithdrawError] = useState<string | null>(null);
   const friendTicket = useRef(0);
 
   useEffect(() => {
@@ -251,6 +259,17 @@ export function App({ liffId }: { liffId: string }) {
     setScreen({ kind: "loggedOut" });
   }
 
+  async function withdraw(): Promise<void> {
+    const deleted = await deleteMe();
+    if (!deleted.ok) {
+      setWithdrawError(deleted.message);
+      return;
+    }
+    liffEndLogin();
+    setWithdrawError(null);
+    setScreen({ kind: "withdrawn" });
+  }
+
   function loginAgain(): void {
     if (liffInClient()) {
       setScreen({ kind: "error", message: "ログインできません" });
@@ -283,6 +302,9 @@ export function App({ liffId }: { liffId: string }) {
         </Stack>
       );
       break;
+    case "withdrawn":
+      body = <Text>退会しました</Text>;
+      break;
     case "ready":
       body = readyBody(screen.me, updateMe);
       break;
@@ -307,12 +329,17 @@ export function App({ liffId }: { liffId: string }) {
           {screen.kind === "ready" ? (
             <AccountMenu
               displayName={screen.me.user.displayName}
+              canWithdraw={canWithdraw(screen.me.user)}
               onLogout={() => {
                 void logout();
+              }}
+              onWithdraw={() => {
+                void withdraw();
               }}
             />
           ) : null}
           {screen.kind === "ready" && logoutError !== null ? <Text>{logoutError}</Text> : null}
+          {screen.kind === "ready" && withdrawError !== null ? <Text>{withdrawError}</Text> : null}
           {body}
         </Stack>
       </Container>

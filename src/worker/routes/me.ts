@@ -1,7 +1,8 @@
 import type { Context } from "hono";
 import { japanYearMonth, monthlyLimit } from "../../shared/time";
+import { clearSessionCookie } from "../auth/session-cookie";
 import { countMonthUsage } from "../db/users";
-import { toPublicUser, type AppEnv } from "../http";
+import { fail, toPublicUser, type AppEnv } from "../http";
 
 export async function getMe(c: Context<AppEnv>): Promise<Response> {
   const user = c.get("user");
@@ -20,4 +21,36 @@ export async function getMe(c: Context<AppEnv>): Promise<Response> {
     },
     error: null,
   });
+}
+
+export async function deleteMe(c: Context<AppEnv>): Promise<Response> {
+  const user = c.get("user");
+  if (user.isAdmin || user.status === "rejected") {
+    return fail(c, 403, "FORBIDDEN", "退会できません");
+  }
+  const deleted = await c.env.DB.prepare(
+    `DELETE FROM users
+     WHERE id = ?1 AND status IN ('pending', 'active')`,
+  )
+    .bind(user.id)
+    .run();
+  const changes = deleted.meta.changes;
+  if (changes >= 1) {
+    clearSessionCookie(c);
+    return c.json({ success: true, data: { ok: true }, error: null });
+  }
+  if (changes !== 0) {
+    throw new Error("changes");
+  }
+  const row = await c.env.DB.prepare("SELECT status FROM users WHERE id = ?1")
+    .bind(user.id)
+    .first<{ status: string }>();
+  if (row === null) {
+    clearSessionCookie(c);
+    return fail(c, 401, "UNAUTHORIZED", "ログインが必要です");
+  }
+  if (row.status === "rejected") {
+    return fail(c, 403, "FORBIDDEN", "退会できません");
+  }
+  throw new Error("changes");
 }

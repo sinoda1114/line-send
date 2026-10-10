@@ -232,7 +232,7 @@ describe("App", () => {
     expect(await screen.findByText("利用者を確認できません")).toBeTruthy();
   });
 
-  it("申請中は予約も退会も管理も出さない", async () => {
+  it("申請中は予約も管理も出さず、退会は出す", async () => {
     const fetchMock = installFetch((url) => {
       const user = { ...activeUser, status: "pending" as const };
       if (url === "/api/session") {
@@ -246,7 +246,7 @@ describe("App", () => {
     renderApp(TEST_LIFF_ID);
     expect(await screen.findByText("承認待ちです")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "予約する" })).toBeNull();
-    expect(screen.queryByText("退会")).toBeNull();
+    expect(screen.getByRole("button", { name: "退会" })).toBeTruthy();
     expect(screen.queryByText("管理")).toBeNull();
     expect(callsInclude(fetchMock, "/api/reminders")).toBe(false);
   });
@@ -269,6 +269,66 @@ describe("App", () => {
     expect(screen.queryByRole("button", { name: "予約する" })).toBeNull();
   });
 
+  it("承認済みの非管理者は確認のあと退会する", async () => {
+    const fetchMock = installFetch((url, init) => {
+      if (url === "/api/session") {
+        return ok({ user: activeUser });
+      }
+      if (url === "/api/me" && init?.method === "DELETE") {
+        return ok({ ok: true });
+      }
+      if (url === "/api/me") {
+        return ok({ user: activeUser, usage });
+      }
+      if (url.startsWith("/api/reminders")) {
+        return ok({ reminders: [] });
+      }
+      return failure(500, "通信できません");
+    });
+    renderApp(TEST_LIFF_ID);
+    fireEvent.click(await screen.findByRole("button", { name: "退会" }));
+    fireEvent.click(screen.getByRole("button", { name: "退会する" }));
+    expect(await screen.findByText("退会しました")).toBeTruthy();
+    expect(screen.queryByText("ログアウトしました")).toBeNull();
+    expect(liff.logout).toHaveBeenCalledTimes(1);
+    const deleteCall = fetchMock.mock.calls.find(
+      (call) => requestUrl(call[0]) === "/api/me" && call[1]?.method === "DELETE",
+    );
+    expect(deleteCall?.[1]?.body).toBe("{}");
+    expect(deleteCall?.[1]?.credentials).toBe("same-origin");
+    expect(header(deleteCall?.[1], "Content-Type")).toBe("application/json");
+    expect(header(deleteCall?.[1], "Origin")).toBeNull();
+    expect(callsInclude(fetchMock, "/api/session")).toBe(true);
+    expect(fetchMock.mock.calls.filter((call) => requestUrl(call[0]) === "/api/session")).toHaveLength(
+      1,
+    );
+  });
+
+  it("退会が拒否されたら画面も LIFF も切らない", async () => {
+    installFetch((url, init) => {
+      if (url === "/api/session") {
+        return ok({ user: activeUser });
+      }
+      if (url === "/api/me" && init?.method === "DELETE") {
+        return failure(403, "退会できません");
+      }
+      if (url === "/api/me") {
+        return ok({ user: activeUser, usage });
+      }
+      if (url.startsWith("/api/reminders")) {
+        return ok({ reminders: [] });
+      }
+      return failure(500, "通信できません");
+    });
+    renderApp(TEST_LIFF_ID);
+    fireEvent.click(await screen.findByRole("button", { name: "退会" }));
+    fireEvent.click(screen.getByRole("button", { name: "退会する" }));
+    expect(await screen.findByText("退会できません")).toBeTruthy();
+    expect(liff.logout).not.toHaveBeenCalled();
+    expect(screen.queryByText("退会しました")).toBeNull();
+    expect(screen.getByRole("button", { name: "ログアウト" })).toBeTruthy();
+  });
+
   it("管理者でも予約画面のままである", async () => {
     const fetchMock = installFetch((url) => {
       const user = { ...activeUser, isAdmin: true };
@@ -286,6 +346,7 @@ describe("App", () => {
     renderApp(TEST_LIFF_ID);
     expect(await screen.findByRole("button", { name: "予約する" })).toBeTruthy();
     expect(screen.getByRole("tab", { name: "管理" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "退会" })).toBeNull();
     expect(screen.queryByRole("button", { name: "太郎を承認" })).toBeNull();
     expect(callsInclude(fetchMock, "/api/admin")).toBe(false);
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([

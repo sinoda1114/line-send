@@ -93,6 +93,14 @@ export function getMe(): Promise<Success<Me> | Failure> {
   return request("/api/me", { method: "GET" });
 }
 
+export function deleteMe(): Promise<Success<{ ok: true }> | Failure> {
+  return request("/api/me", {
+    method: "DELETE",
+    headers: { "content-type": "application/json" },
+    body: "{}",
+  });
+}
+
 export function listReminders(
   view: "upcoming" | "history",
 ): Promise<Success<{ reminders: Reminder[] }> | Failure> {
