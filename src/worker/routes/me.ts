@@ -1,7 +1,7 @@
 import type { Context } from "hono";
 import { japanYearMonth, monthlyLimit } from "../../shared/time";
 import { clearSessionCookie } from "../auth/session-cookie";
-import { countMonthUsage } from "../db/users";
+import { countMonthUsage, deleteWithdrawableUser, findUserDecision } from "../db/users";
 import { fail, toPublicUser, type AppEnv } from "../http";
 
 export async function getMe(c: Context<AppEnv>): Promise<Response> {
@@ -28,13 +28,7 @@ export async function deleteMe(c: Context<AppEnv>): Promise<Response> {
   if (user.isAdmin || user.status === "rejected") {
     return fail(c, 403, "FORBIDDEN", "退会できません");
   }
-  const deleted = await c.env.DB.prepare(
-    `DELETE FROM users
-     WHERE id = ?1 AND status IN ('pending', 'active')`,
-  )
-    .bind(user.id)
-    .run();
-  const changes = deleted.meta.changes;
+  const changes = await deleteWithdrawableUser(c.env.DB, user.id);
   if (changes >= 1) {
     clearSessionCookie(c);
     return c.json({ success: true, data: { ok: true }, error: null });
@@ -42,9 +36,7 @@ export async function deleteMe(c: Context<AppEnv>): Promise<Response> {
   if (changes !== 0) {
     throw new Error("changes");
   }
-  const row = await c.env.DB.prepare("SELECT status FROM users WHERE id = ?1")
-    .bind(user.id)
-    .first<{ status: string }>();
+  const row = await findUserDecision(c.env.DB, user.id);
   if (row === null) {
     clearSessionCookie(c);
     return fail(c, 401, "UNAUTHORIZED", "ログインが必要です");

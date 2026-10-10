@@ -194,6 +194,17 @@ export async function approveUserWithinLimit(
   return updated.meta.changes;
 }
 
+export async function deleteWithdrawableUser(db: D1Database, userId: string): Promise<number> {
+  const deleted = await db
+    .prepare(
+      `DELETE FROM users
+       WHERE id = ?1 AND status IN ('pending', 'active')`,
+    )
+    .bind(userId)
+    .run();
+  return deleted.meta.changes;
+}
+
 export async function findUserDecision(
   db: D1Database,
   userId: string,
