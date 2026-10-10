@@ -27,7 +27,10 @@ export default defineConfig({
             return {
               wrangler: { configPath: "./wrangler.jsonc" },
               miniflare: {
-                bindings: { TEST_MIGRATIONS: migrations },
+                bindings: {
+                  TEST_MIGRATIONS: migrations,
+                  LINE_CHANNEL_ACCESS_TOKEN: "test-token",
+                },
               },
             };
           }),

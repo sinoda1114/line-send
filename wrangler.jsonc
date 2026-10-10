@@ -9,9 +9,12 @@
     "run_worker_first": ["/api/*"]
   },
   "triggers": {
-    "crons": []
+    "crons": ["* * * * *"]
   },
   "previews": {},
+  "secrets": {
+    "required": ["LINE_CHANNEL_ACCESS_TOKEN"]
+  },
   "d1_databases": [
     {
       "binding": "DB",
