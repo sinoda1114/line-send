@@ -1,7 +1,7 @@
 import path from "node:path";
 import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-plugin";
 import react from "@vitejs/plugin-react";
-import { configDefaults, defineConfig } from "vitest/config";
+import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
@@ -34,12 +34,7 @@ export default defineConfig({
         ],
         test: {
           name: "worker",
-          include: ["test/worker/**/*.ts"],
-          exclude: [
-            ...configDefaults.exclude,
-            "test/worker/apply-migrations.ts",
-            "test/worker/**/*.d.ts",
-          ],
+          include: ["test/worker/**/*.spec.ts"],
           setupFiles: ["./test/worker/apply-migrations.ts"],
         },
       },
