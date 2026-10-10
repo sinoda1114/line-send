@@ -1,0 +1,43 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "line-send",
+  "main": "./src/worker/index.ts",
+  "compatibility_date": "2026-10-10",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
+  "vars": {
+    "LINE_LOGIN_CHANNEL_ID": "",
+    "APP_ORIGIN": "",
+    "MONTHLY_LIMIT": "30",
+    "LIFF_ID": ""
+  },
+  "previews": {
+    "vars": {
+      "LINE_LOGIN_CHANNEL_ID": "",
+      "APP_ORIGIN": "",
+      "MONTHLY_LIMIT": "30",
+      "LIFF_ID": ""
+    }
+  },
+  "secrets": {
+    "required": [
+      "LINE_CHANNEL_ACCESS_TOKEN",
+      "SESSION_SECRET",
+      "ADMIN_LINE_USER_ID"
+    ]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "line-send",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ]
+}
