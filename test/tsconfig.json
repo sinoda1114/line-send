@@ -4,5 +4,5 @@
     "lib": ["ES2023", "DOM"],
     "types": ["@cloudflare/vitest-plugin/types"]
   },
-  "include": ["./**/*.ts", "./**/*.tsx", "../worker-configuration.d.ts"]
+  "include": ["./**/*.ts", "./**/*.tsx", "./**/*.d.ts", "../worker-configuration.d.ts"]
 }
