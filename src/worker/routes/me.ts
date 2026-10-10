@@ -1,31 +1,7 @@
 import type { Context } from "hono";
+import { japanYearMonth, monthlyLimit } from "../../shared/time";
 import { countMonthUsage } from "../db/users";
 import { toPublicUser, type AppEnv } from "../http";
-
-export function japanYearMonth(nowMs: number): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-  }).formatToParts(new Date(nowMs));
-  const year = parts.find((part) => part.type === "year")?.value;
-  const month = parts.find((part) => part.type === "month")?.value;
-  if (year === undefined || month === undefined) {
-    throw new Error("month");
-  }
-  return `${year}-${month}`;
-}
-
-export function monthlyLimit(value: string): number {
-  if (value === "") {
-    return 30;
-  }
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < 0) {
-    return 30;
-  }
-  return parsed;
-}
 
 export async function getMe(c: Context<AppEnv>): Promise<Response> {
   const user = c.get("user");

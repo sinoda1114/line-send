@@ -3,7 +3,7 @@ import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it } from "vitest";
 import { openSession, sealSession } from "../../src/worker/auth/session-cookie";
 import worker from "../../src/worker/index";
-import { japanYearMonth } from "../../src/worker/routes/me";
+import { japanYearMonth } from "../../src/shared/time";
 
 const VERIFY_URL = "https://api.line.me/oauth2/v2.1/verify";
 const ORIGIN = "https://app.example";

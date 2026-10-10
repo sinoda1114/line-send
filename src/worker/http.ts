@@ -11,11 +11,17 @@ export type AppEnv = {
   };
 };
 
-type ErrorCode = "INVALID_INPUT" | "UNAUTHORIZED" | "FORBIDDEN" | "INTERNAL";
+type ErrorCode =
+  | "INVALID_INPUT"
+  | "UNAUTHORIZED"
+  | "FORBIDDEN"
+  | "NOT_FOUND"
+  | "QUOTA_EXCEEDED"
+  | "INTERNAL";
 
 export function fail(
   c: Context,
-  status: 400 | 401 | 403 | 500,
+  status: 400 | 401 | 403 | 404 | 429 | 500,
   code: ErrorCode,
   message: string,
 ) {
