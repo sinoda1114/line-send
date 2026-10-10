@@ -6,12 +6,20 @@ export type PushOutcome =
   | { type: "fail"; reason: string }
   | { type: "stop" };
 
+export function tokenContainsLineBreak(token: string): boolean {
+  return token.includes("\r") || token.includes("\n");
+}
+
 export async function pushMessage(
   token: string,
   to: string,
   text: string,
   retryKey: string,
 ): Promise<PushOutcome> {
+  if (tokenContainsLineBreak(token)) {
+    return { type: "stop" };
+  }
+
   let response: Response;
   try {
     // workerd は redirect: "error" を拒否する。manual なら 3xx を自分で受ける。

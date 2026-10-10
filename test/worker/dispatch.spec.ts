@@ -6,6 +6,7 @@ import {
 import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import worker from "../../src/worker/index";
+import { pushMessage } from "../../src/worker/line/push";
 import { dispatch } from "../../src/worker/services/dispatch";
 
 const LINE_PUSH_URL = "https://api.line.me/v2/bot/message/push";
@@ -615,6 +616,59 @@ describe("送信処理", () => {
       status: "scheduled",
       attempts: 0,
     });
+  });
+
+  it.each([
+    ["LF", "test-token\n"],
+    ["CR", "test-token\r"],
+    ["CRLF", "test-token\r\n"],
+    ["途中の LF", "test-\ntoken"],
+    ["途中の CR", "test-\rtoken"],
+  ])(
+    "環境変数のトークンに %s があれば送らず行も変えない",
+    async (_label, token) => {
+      await insertUser(userId, lineUserId, "active");
+      const id = "99999999-9999-4999-8999-999999999993";
+      await seedActive(id, "文面", "2026-10-10T02:00:00Z");
+      const calls = mockPush(200, {});
+      const ctx = createExecutionContext();
+
+      await worker.scheduled(
+        createScheduledController({
+          scheduledTime: new Date(at0300),
+          cron: "* * * * *",
+        }),
+        { ...env, LINE_CHANNEL_ACCESS_TOKEN: token },
+        ctx,
+      );
+      await waitOnExecutionContext(ctx);
+
+      expect(calls).toHaveLength(0);
+      expect(await readReminder(id)).toMatchObject({
+        status: "scheduled",
+        attempts: 0,
+        updated_at: "2026-10-10T01:00:00Z",
+        sent_at: null,
+      });
+    },
+  );
+
+  it.each([
+    ["LF", "test-token\n"],
+    ["CR", "test-token\r"],
+    ["CRLF", "test-token\r\n"],
+  ])("push は %s を含むトークンを Authorization に載せない", async (_label, token) => {
+    const calls = mockPush(200, {});
+
+    const outcome = await pushMessage(
+      token,
+      lineUserId,
+      "文面",
+      "99999999-9999-4999-8999-999999999994",
+    );
+
+    expect(outcome).toEqual({ type: "stop" });
+    expect(calls).toHaveLength(0);
   });
 
   it("空のトークンでは送らず行も変えない", async () => {
