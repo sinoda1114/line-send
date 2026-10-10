@@ -14,13 +14,15 @@
   "vars": {
     "LINE_LOGIN_CHANNEL_ID": "",
     "APP_ORIGIN": "",
-    "MONTHLY_LIMIT": "30"
+    "MONTHLY_LIMIT": "30",
+    "LIFF_ID": ""
   },
   "previews": {
     "vars": {
       "LINE_LOGIN_CHANNEL_ID": "",
       "APP_ORIGIN": "",
-      "MONTHLY_LIMIT": "30"
+      "MONTHLY_LIMIT": "30",
+      "LIFF_ID": ""
     }
   },
   "secrets": {
