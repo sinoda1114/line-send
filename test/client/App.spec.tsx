@@ -146,6 +146,7 @@ describe("App", () => {
     });
     renderApp(TEST_LIFF_ID);
     expect(await screen.findByRole("button", { name: "予約する" })).toBeTruthy();
+    expect(screen.queryByRole("tab", { name: "管理" })).toBeNull();
     expect(liff.init).toHaveBeenCalledWith({ liffId: TEST_LIFF_ID });
     const sessionCall = fetchMock.mock.calls[0];
     const sessionInit = sessionCall?.[1];
@@ -264,6 +265,7 @@ describe("App", () => {
     renderApp(TEST_LIFF_ID);
     expect(await screen.findByText("利用できません")).toBeTruthy();
     expect(screen.queryByText("退会")).toBeNull();
+    expect(screen.queryByText("管理")).toBeNull();
     expect(screen.queryByRole("button", { name: "予約する" })).toBeNull();
   });
 
@@ -283,10 +285,172 @@ describe("App", () => {
     });
     renderApp(TEST_LIFF_ID);
     expect(await screen.findByRole("button", { name: "予約する" })).toBeTruthy();
-    expect(screen.queryByText("管理")).toBeNull();
-    expect(screen.queryByText("承認")).toBeNull();
+    expect(screen.getByRole("tab", { name: "管理" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "太郎を承認" })).toBeNull();
     expect(callsInclude(fetchMock, "/api/admin")).toBe(false);
-    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["送信待ち", "履歴"]);
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      "予約",
+      "管理",
+      "送信待ち",
+      "履歴",
+    ]);
+  });
+
+  it("管理者は管理タブで承認し、失敗は案内に出す", async () => {
+    const pending = {
+      id: "user/1",
+      displayName: "太郎",
+      status: "pending" as const,
+      monthCount: 0,
+    };
+    const other = {
+      id: "user-2",
+      displayName: "花子",
+      status: "active" as const,
+      monthCount: 1,
+    };
+    let users = [pending, other];
+    const fetchMock = installFetch((url, init) => {
+      const user = { ...activeUser, isAdmin: true };
+      if (url === "/api/session") {
+        return ok({ user });
+      }
+      if (url === "/api/me") {
+        return ok({ user, usage });
+      }
+      if (url.startsWith("/api/reminders")) {
+        return ok({ reminders: [] });
+      }
+      if (url === "/api/admin/users" && init?.method === "GET") {
+        return ok({
+          users,
+          activeCount: 1,
+          monthlyLimit: 30,
+          globalLimit: 180,
+        });
+      }
+      if (url === "/api/admin/users/user%2F1/approve" && init?.method === "POST") {
+        users = [{ ...pending, status: "active" }, other];
+        return ok({ ok: true });
+      }
+      if (url === "/api/admin/users/user-2/reject" && init?.method === "POST") {
+        return failure(403, "管理者は却下できません");
+      }
+      return failure(500, "通信できません");
+    });
+    renderApp(TEST_LIFF_ID);
+    fireEvent.click(await screen.findByRole("tab", { name: "管理" }));
+    expect(await screen.findByText("申請中")).toBeTruthy();
+    expect(
+      screen.getByText("承認後の人数 × 月間上限が 180 を超える承認はできません"),
+    ).toBeTruthy();
+    const listCall = fetchMock.mock.calls.find(
+      (call) => requestUrl(call[0]) === "/api/admin/users",
+    );
+    expect(listCall?.[1]?.method).toBe("GET");
+    expect(listCall?.[1]?.credentials).toBe("same-origin");
+    expect(header(listCall?.[1], "Origin")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "太郎を承認" }));
+    await waitFor(() => {
+      expect(screen.queryByText("申請中")).toBeNull();
+    });
+    const approveCall = fetchMock.mock.calls.find((call) =>
+      requestUrl(call[0]).endsWith("/approve"),
+    );
+    expect(requestUrl(approveCall?.[0] ?? "")).toBe("/api/admin/users/user%2F1/approve");
+    expect(approveCall?.[1]?.method).toBe("POST");
+    expect(approveCall?.[1]?.credentials).toBe("same-origin");
+    expect(header(approveCall?.[1], "Content-Type")).toBe("application/json");
+    expect(header(approveCall?.[1], "Origin")).toBeNull();
+    expect(JSON.parse(String(approveCall?.[1]?.body))).toEqual({});
+    fireEvent.click(screen.getByRole("button", { name: "花子を却下" }));
+    expect(await screen.findByText("管理者は却下できません")).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "予約" })).toBeTruthy();
+  });
+
+  it("一覧の取り直しは、その後の失敗案内を消さない", async () => {
+    const pending = {
+      id: "user/1",
+      displayName: "太郎",
+      status: "pending" as const,
+      monthCount: 0,
+    };
+    const other = {
+      id: "user-2",
+      displayName: "花子",
+      status: "active" as const,
+      monthCount: 1,
+    };
+    const listed = {
+      users: [pending, other],
+      activeCount: 1,
+      monthlyLimit: 30,
+      globalLimit: 180,
+    };
+    let listRound = 0;
+    let releaseReload: ((response: Response) => void) | null = null;
+    installFetch((url, init) => {
+      const user = { ...activeUser, isAdmin: true };
+      if (url === "/api/session") {
+        return ok({ user });
+      }
+      if (url === "/api/me") {
+        return ok({ user, usage });
+      }
+      if (url.startsWith("/api/reminders")) {
+        return ok({ reminders: [] });
+      }
+      if (url === "/api/admin/users" && init?.method === "GET") {
+        listRound += 1;
+        if (listRound === 1) {
+          return ok(listed);
+        }
+        return new Promise((resolve) => {
+          releaseReload = resolve;
+        });
+      }
+      if (url === "/api/admin/users/user%2F1/approve" && init?.method === "POST") {
+        return ok({ ok: true });
+      }
+      if (url === "/api/admin/users/user-2/reject" && init?.method === "POST") {
+        return failure(403, "管理者は却下できません");
+      }
+      return failure(500, "通信できません");
+    });
+    renderApp(TEST_LIFF_ID);
+    fireEvent.click(await screen.findByRole("tab", { name: "管理" }));
+    fireEvent.click(await screen.findByRole("button", { name: "太郎を承認" }));
+    await waitFor(() => {
+      expect(listRound).toBe(2);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "花子を却下" }));
+    expect(await screen.findByText("管理者は却下できません")).toBeTruthy();
+    await act(async () => {
+      releaseReload?.(ok(listed));
+    });
+    expect(screen.getByText("管理者は却下できません")).toBeTruthy();
+  });
+
+  it("管理の一覧に失敗したらその文言を出す", async () => {
+    installFetch((url) => {
+      const user = { ...activeUser, isAdmin: true };
+      if (url === "/api/session") {
+        return ok({ user });
+      }
+      if (url === "/api/me") {
+        return ok({ user, usage });
+      }
+      if (url.startsWith("/api/reminders")) {
+        return ok({ reminders: [] });
+      }
+      if (url === "/api/admin/users") {
+        return failure(403, "管理できません");
+      }
+      return failure(500, "通信できません");
+    });
+    renderApp(TEST_LIFF_ID);
+    fireEvent.click(await screen.findByRole("tab", { name: "管理" }));
+    expect(await screen.findByText("管理できません")).toBeTruthy();
   });
 
   it("未友だちなら追加を案内し、予約は止めない", async () => {

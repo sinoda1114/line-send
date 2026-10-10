@@ -117,3 +117,37 @@ export function deleteReminder(id: string): Promise<Success<{ ok: boolean }> | F
     body: JSON.stringify({}),
   });
 }
+
+export type AdminUser = {
+  id: string;
+  displayName: string;
+  status: UserStatus;
+  monthCount: number;
+};
+
+export type AdminList = {
+  users: AdminUser[];
+  activeCount: number;
+  monthlyLimit: number;
+  globalLimit: number;
+};
+
+export function listAdminUsers(): Promise<Success<AdminList> | Failure> {
+  return request("/api/admin/users", { method: "GET" });
+}
+
+export function approveUser(id: string): Promise<Success<{ ok: boolean }> | Failure> {
+  return request(`/api/admin/users/${encodeURIComponent(id)}/approve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+}
+
+export function rejectUser(id: string): Promise<Success<{ ok: boolean }> | Failure> {
+  return request(`/api/admin/users/${encodeURIComponent(id)}/reject`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+}

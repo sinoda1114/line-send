@@ -9,3 +9,12 @@ export const requireActive: MiddlewareHandler<AppEnv> = async (c, next) => {
   await next();
   return;
 };
+
+export const requireAdmin: MiddlewareHandler<AppEnv> = async (c, next) => {
+  const user = c.get("user");
+  if (!user.isAdmin) {
+    return fail(c, 403, "FORBIDDEN", "管理できません");
+  }
+  await next();
+  return;
+};

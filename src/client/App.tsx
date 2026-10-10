@@ -1,6 +1,16 @@
-import { Button, Container, Stack, Text } from "@mantine/core";
+import { Button, Container, Stack, Tabs, Text } from "@mantine/core";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { createSession, deleteSession, getMe, type Me } from "./api";
+import {
+  approveUser,
+  createSession,
+  deleteSession,
+  getMe,
+  listAdminUsers,
+  rejectUser,
+  type AdminList,
+  type Failure,
+  type Me,
+} from "./api";
 import { AccountMenu } from "./components/AccountMenu";
 import { FriendBanner } from "./components/FriendBanner";
 import "./dates";
@@ -14,8 +24,107 @@ import {
   liffLoggedIn,
   liffStartLogin,
 } from "./liff";
+import { AdminPage } from "./pages/AdminPage";
 import { RemindersPage } from "./pages/RemindersPage";
 import { StatusPage } from "./pages/StatusPage";
+
+type AdminView =
+  | { kind: "loading" }
+  | { kind: "error"; message: string }
+  | { kind: "ready"; data: AdminList };
+
+function AdminLoader({ viewerId }: { viewerId: string }) {
+  const [view, setView] = useState<AdminView>({ kind: "loading" });
+  const [notice, setNotice] = useState<string | null>(null);
+  const generation = useRef(0);
+
+  async function load(): Promise<void> {
+    const ticket = ++generation.current;
+    const listed = await listAdminUsers();
+    if (ticket !== generation.current) {
+      return;
+    }
+    if (!listed.ok) {
+      setView({ kind: "error", message: listed.message });
+      return;
+    }
+    setView({ kind: "ready", data: listed.data });
+  }
+
+  useEffect(() => {
+    void load();
+    return () => {
+      generation.current += 1;
+    };
+  }, []);
+
+  async function decide(
+    id: string,
+    run: (userId: string) => Promise<{ ok: true; data: { ok: boolean } } | Failure>,
+  ): Promise<void> {
+    const ticket = generation.current;
+    const result = await run(id);
+    if (!result.ok) {
+      if (ticket !== generation.current) {
+        return;
+      }
+      setNotice(result.message);
+      return;
+    }
+    if (ticket === generation.current) {
+      setNotice(null);
+    }
+    await load();
+  }
+
+  switch (view.kind) {
+    case "loading":
+      return <Text>読み込み中</Text>;
+    case "error":
+      return <Text>{view.message}</Text>;
+    case "ready":
+      return (
+        <AdminPage
+          users={view.data.users}
+          activeCount={view.data.activeCount}
+          monthlyLimit={view.data.monthlyLimit}
+          globalLimit={view.data.globalLimit}
+          viewerId={viewerId}
+          notice={notice}
+          onApprove={(id) => {
+            void decide(id, approveUser);
+          }}
+          onReject={(id) => {
+            void decide(id, rejectUser);
+          }}
+        />
+      );
+    default: {
+      const neverView: never = view;
+      return neverView;
+    }
+  }
+}
+
+function ActiveHome({ me, onMe }: { me: Me; onMe: (next: Me) => void }) {
+  if (!me.user.isAdmin) {
+    return <RemindersPage me={me} onMe={onMe} />;
+  }
+  return (
+    <Tabs defaultValue="reserve">
+      <Tabs.List grow>
+        <Tabs.Tab value="reserve">予約</Tabs.Tab>
+        <Tabs.Tab value="admin">管理</Tabs.Tab>
+      </Tabs.List>
+      <Tabs.Panel value="reserve">
+        <RemindersPage me={me} onMe={onMe} />
+      </Tabs.Panel>
+      <Tabs.Panel value="admin">
+        <AdminLoader viewerId={me.user.id} />
+      </Tabs.Panel>
+    </Tabs>
+  );
+}
 
 type Screen =
   | { kind: "loading" }
@@ -32,7 +141,7 @@ function readyBody(me: Me, onMe: (next: Me) => void) {
     case "rejected":
       return <StatusPage message="利用できません" />;
     case "active":
-      return <RemindersPage me={me} onMe={onMe} />;
+      return <ActiveHome me={me} onMe={onMe} />;
     default: {
       const neverStatus: never = me.user.status;
       return neverStatus;
