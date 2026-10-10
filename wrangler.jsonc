@@ -11,9 +11,24 @@
   "triggers": {
     "crons": ["* * * * *"]
   },
-  "previews": {},
+  "vars": {
+    "LINE_LOGIN_CHANNEL_ID": "",
+    "APP_ORIGIN": "",
+    "MONTHLY_LIMIT": "30"
+  },
+  "previews": {
+    "vars": {
+      "LINE_LOGIN_CHANNEL_ID": "",
+      "APP_ORIGIN": "",
+      "MONTHLY_LIMIT": "30"
+    }
+  },
   "secrets": {
-    "required": ["LINE_CHANNEL_ACCESS_TOKEN"]
+    "required": [
+      "LINE_CHANNEL_ACCESS_TOKEN",
+      "SESSION_SECRET",
+      "ADMIN_LINE_USER_ID"
+    ]
   },
   "d1_databases": [
     {

@@ -30,6 +30,11 @@ export default defineConfig({
                 bindings: {
                   TEST_MIGRATIONS: migrations,
                   LINE_CHANNEL_ACCESS_TOKEN: "test-token",
+                  SESSION_SECRET: "0123456789abcdef0123456789abcdef",
+                  ADMIN_LINE_USER_ID: "Uaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  LINE_LOGIN_CHANNEL_ID: "1234567890",
+                  APP_ORIGIN: "https://app.example",
+                  MONTHLY_LIMIT: "30",
                 },
               },
             };
@@ -39,6 +44,7 @@ export default defineConfig({
           name: "worker",
           include: ["test/worker/**/*.spec.ts"],
           setupFiles: ["./test/worker/apply-migrations.ts"],
+          fileParallelism: false,
         },
       },
       {
