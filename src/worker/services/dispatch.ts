@@ -1,4 +1,8 @@
-import { pushMessage, type PushOutcome } from "../line/push";
+import {
+  pushMessage,
+  tokenContainsLineBreak,
+  type PushOutcome,
+} from "../line/push";
 
 const FIVE_MINUTES_MS = 5 * 60 * 1000;
 
@@ -37,7 +41,7 @@ export async function dispatch(
   token: string,
   scheduledTime: number,
 ): Promise<void> {
-  if (token === "") {
+  if (token === "" || tokenContainsLineBreak(token)) {
     return;
   }
 
